@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Registro / Ingreso - Rotacion100</title>
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+    const SUPABASE_URL = 'https://TU_SUPABASE_URL';
+    const SUPABASE_ANON_KEY = 'TU_SUPABASE_ANON_KEY';
+    const EDGE_CREATE_STRIPE = '/.netlify/functions/create-stripe-express' // o la ruta de tu Edge Function
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // DOM
+    document.addEventListener('DOMContentLoaded', () => {
+      const form = document.getElementById('auth-form');
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        if (!email) return alert('Ingresa un email');
+
+        // enviar magic link
+        const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href }});
+        if (error) {
+          alert('Error: ' + error.message);
+        } else {
+          alert('Revisa tu email para el enlace mágico (magic link).');
+        }
+      });
+
+      // verificar si viene sesión
+      supabase.auth.onAuthStateChange(async (event, session) => {
+        if (session && session.user) {
+          // Llamar al Edge Function para crear/obtener Stripe Express onboarding link
+          // Asegúrate que en tu sistema usuarios están vinculados por user.id o email
+          const user = session.user;
+          // Si tienes tabla usuarios en supabase, upsertea aquí para asegurar existencia
+          await fetch('/.netlify/functions/upsert-user', { // opcional: endpoint que crea fila en usuarios si falta
+            method: 'POST',
+            headers: {'content-type': 'application/json'},
+            body: JSON.stringify({ email: user.email, usuario_id: user.id })
+          });
+
+          const res = await fetch(EDGE_CREATE_STRIPE, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email: user.email, usuario_id: user.id })
+          });
+
+          const data = await res.json();
+          if (data?.url) {
+            // Redirige al usuario al onboarding de Stripe Express
+            window.location.href = data.url;
+          } else {
+            console.error(data);
+            alert('No se pudo crear el enlace de Stripe. Contacta al admin.');
+          }
+        }
+      });
+    });
+  </script>
+
+  <style>
+    /* Minimal, moderno */
+    :root { --bg:#0f172a; --card:#0b1220; --accent:#7c3aed; color-scheme: dark; }
+    body{ font-family: Inter, system-ui, sans-serif; background:linear-gradient(180deg,#071029,#071b2a); min-height:100vh; display:flex; align-items:center; justify-content:center; margin:0; }
+    .card{ background:rgba(255,255,255,0.04); border-radius:12px; padding:28px; width:360px; box-shadow:0 8px 30px rgba(2,6,23,0.7); color:#e6eef8; }
+    h1{ margin:0 0 12px 0; font-size:20px; }
+    label{ font-size:12px; opacity:.9; }
+    input{ width:100%; padding:10px; margin:8px 0 16px 0; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background:transparent; color:inherit; }
+    button{ width:100%; padding:10px; border-radius:10px; border:0; background:linear-gradient(90deg,var(--accent),#5eead4); color:#021; font-weight:600; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Bienvenido</h1>
+    <p>Regístrate o ingresa con tu email</p>
+
+    <form id="auth-form">
+      <label for="email">Email</label>
+      <input id="email" type="email" placeholder="tu@email.com" required />
+      <button type="submit">Enviar enlace mágico</button>
+    </form>
+  </div>
+</body>
+</html>
