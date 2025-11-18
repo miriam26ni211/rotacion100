@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Panel Admin - Rotacion100</title>
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+const SUPABASE_URL = 'TU_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'TU_SUPABASE_ANON_KEY';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const userTable = document.getElementById('usuarios-table');
+
+    async function fetchUsuarios() {
+        const { data, error } = await supabase.from('usuarios').select('*').order('created_at', { ascending: false });
+        if (error) return console.error(error);
+        userTable.innerHTML = data.map(u => `
+            <tr>
+                <td>${u.nombre}</td>
+                <td>${u.email}</td>
+                <td>${u.telefono}</td>
+                <td>${u.direccion}</td>
+                <td>${u.posicion}</td>
+                <td>${u.completado ? 'Sí' : 'No'}</td>
+                <td>
+                    <button data-id="${u.id}" class="toggle-block-btn">
+                        ${u.bloqueado ? 'Desbloquear' : 'Bloquear'}
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    await fetchUsuarios();
+
+    // Realtime updates
+    supabase.channel('public:usuarios')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'usuarios' }, fetchUsuarios)
+        .subscribe();
+
+    // Bloquear / desbloquear
+    userTable.addEventListener('click', async e => {
+        if (e.target.classList.contains('toggle-block-btn')) {
+            const id = e.target.dataset.id;
+            const { data, error } = await supabase.from('usuarios').update({
+                bloqueado: !e.target.textContent.includes('Desbloquear')
+            }).eq('id', id);
+            if (error) console.error(error);
+        }
+    });
+});
+</script>
+<style>
+body{font-family:Inter,sans-serif;background:#071b2a;color:#e6eef8;margin:0;padding:20px;}
+h1{margin-bottom:20px;text-align:center;}
+table{width:100%;border-collapse:collapse;}
+th,td{padding:12px;border-bottom:1px solid rgba(255,255,255,0.1);}
+th{background:#0b1220;}
+button{padding:6px 12px;border:none;border-radius:6px;background:linear-gradient(90deg,#7c3aed,#5eead4);color:#021;cursor:pointer;}
+</style>
+</head>
+<body>
+<h1>Panel de Administrador</h1>
+<table>
+<thead>
+<tr>
+<th>Nombre</th><th>Email</th><th>Teléfono</th><th>Dirección</th><th>Posición</th><th>Completado</th><th>Acción</th>
+</tr>
+</thead>
+<tbody id="usuarios-table"></tbody>
+</table>
+</body>
+</html>

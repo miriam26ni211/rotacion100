@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Perfil - Rotacion100</title>
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+const SUPABASE_URL = 'TU_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'TU_SUPABASE_ANON_KEY';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const posContainer = document.getElementById('posicion');
+    const pagosContainer = document.getElementById('pagos');
+    const bonosContainer = document.getElementById('bonos');
+
+    const session = supabase.auth.session();
+    if (!session) { window.location.href = '/index.html'; return; }
+    const userId = session.user.id;
+
+    const { data: user } = await supabase.from('usuarios').select('posicion').eq('id', userId).single();
+    posContainer.textContent = user.posicion;
+
+    const { data: pagos } = await supabase.from('pagos').select('*').eq('usuario_id', userId).order('created_at', { ascending: false });
+    pagosContainer.innerHTML = pagos.map(p => `<li>$${p.monto} - ${p.metodo_pago} - ${new Date(p.created_at).toLocaleString()}</li>`).join('');
+
+    const { data: bonos } = await supabase.from('bonos').select('*').eq('usuario_id', userId).order('created_at', { ascending: false });
+    bonosContainer.innerHTML = bonos.map(b => `<li>$${b.monto} - ${b.estado} - ${new Date(b.created_at).toLocaleString()}</li>`).join('');
+});
+</script>
+<style>
+body{font-family:Inter,sans-serif;background:#071b2a;color:#e6eef8;margin:0;padding:20px;}
+h1,h2{margin-bottom:12px;text-align:center;}
+ul{list-style:none;padding:0;}
+li{padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.1);}
+.card{background:rgba(255,255,255,0.04);padding:20px;border-radius:12px;margin-bottom:20px;}
+</style>
+</head>
+<body>
+<h1>Bienvenido a tu perfil</h1>
+<div class="card">
+<h2>Posición actual: <span id="posicion">-</span></h2>
+</div>
+<div class="card">
+<h2>Historial de pagos</h2>
+<ul id="pagos"></ul>
+</div>
+<div class="card">
+<h2>Historial de bonos</h2>
+<ul id="bonos"></ul>
+</div>
+</body>
+</html>

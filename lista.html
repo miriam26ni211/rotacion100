@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lista Dinámica - Rotacion100</title>
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+const SUPABASE_URL = 'TU_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'TU_SUPABASE_ANON_KEY';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const listaContainer = document.getElementById('lista-usuarios');
+
+    async function fetchUsuarios() {
+        const { data } = await supabase.from('usuarios').select('*');
+        const lista = Array.from({ length: 100 }, (_, i) => {
+            const pos = 100 - i;
+            const u = data.find(x => x.posicion === pos);
+            return { posicion: pos, nombre: u?.nombre || '-', completado: u?.completado || false };
+        });
+        listaContainer.innerHTML = lista.map(u => `
+            <li style="color:${u.posicion===100?'#ffd700':u.posicion===1?'#00f':'#f8b6c9'}">
+                #${u.posicion} - ${u.nombre} ${u.completado?'- GANADOR':''}
+            </li>
+        `).join('');
+    }
+
+    await fetchUsuarios();
+    supabase.channel('public:usuarios')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'usuarios' }, fetchUsuarios)
+        .subscribe();
+});
+</script>
+<style>
+body{font-family:Inter,sans-serif;background:#071b2a;color:#e6eef8;margin:0;padding:20px;}
+h1{text-align:center;margin-bottom:20px;}
+ul{list-style:none;padding:0;}
+li{padding:6px 0;font-weight:600;}
+</style>
+</head>
+<body>
+<h1>Rotacion100 - Lista dinámica</h1>
+<ul id="lista-usuarios"></ul>
+</body>
+</html>

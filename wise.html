@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wise - Rotacion100</title>
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+const SUPABASE_URL = 'TU_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'TU_SUPABASE_ANON_KEY';
+const EDGE_WISE_TRANSFER = '/.netlify/functions/wise-transfer'; // Ruta a tu función de Wise
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const session = supabase.auth.session();
+    if (!session) return window.location.href='/index.html';
+    const userId = session.user.id;
+
+    const balanceEl = document.getElementById('balance');
+    const transferForm = document.getElementById('transfer-form');
+    const historyEl = document.getElementById('transfer-history');
+
+    // Obtener saldo actual (puede venir de tu tabla de usuarios o Wise)
+    const { data: user } = await supabase.from('usuarios').select('saldo').eq('id', userId).single();
+    balanceEl.textContent = `$${user.saldo || 0}`;
+
+    // Historial de transferencias
+    const { data: transfers } = await supabase.from('wise_transfers').select('*').eq('usuario_id', userId).order('created_at', { ascending: false });
+    historyEl.innerHTML = transfers.map(t => `<li>${t.monto} ${t.moneda} → ${t.destino} - ${t.estado} - ${new Date(t.created_at).toLocaleString()}</li>`).join('');
+
+    // Enviar transferencia
+    transferForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const monto = document.getElementById('monto').value;
+        const destino = document.getElementById('destino').value;
+        if (!monto || !destino) return alert('Completa todos los campos');
+
+        const res = await fetch(EDGE_WISE_TRANSFER, {
+            method: 'POST',
+            headers: {'content-type':'application/json'},
+            body: JSON.stringify({ usuario_id: userId, monto, destino })
+        });
+
+        const data = await res.json();
+        if (data.error) return alert('Error: ' + data.error);
+        alert('Transferencia enviada correctamente!');
+
+        // Actualizar balance y historial
+        balanceEl.textContent = `$${parseFloat(user.saldo || 0) - parseFloat(monto)}`;
+        historyEl.innerHTML = `<li>${monto} USD → ${destino} - PENDIENTE - ${new Date().toLocaleString()}</li>` + historyEl.innerHTML;
+    });
+});
+</script>
+<style>
+body{font-family:Inter,sans-serif;background:#071b2a;color:#e6eef8;padding:20px;min-height:100vh;}
+h1,h2{margin-bottom:12px;text-align:center;}
+.card{background:rgba(255,255,255,0.04);border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 8px 30px rgba(2,6,23,0.7);}
+input,button{width:100%;padding:10px;margin:6px 0;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit;}
+button{border:none;background:linear-gradient(90deg,#7c3aed,#5eead4);font-weight:600;cursor:pointer;}
+ul{list-style:none;padding:0;}
+li{padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.1);}
+</style>
+</head>
+<body>
+<h1>Wise - Gestión de Transferencias</h1>
+<div class="card">
+<h2>Saldo actual: <span id="balance">$0</span></h2>
+<form id="transfer-form">
+<label for="monto">Monto USD</label>
+<input id="monto" type="number" step="0.01" placeholder="100" required />
+<label for="destino">Destino (email o cuenta Wise)</label>
+<input id="destino" type="text" placeholder="correo@banco.com" required />
+<button type="submit">Enviar transferencia</button>
+</form>
+</div>
+<div class="card">
+<h2>Historial de transferencias</h2>
+<ul id="transfer-history"></ul>
+</div>
+</body>
+</html>

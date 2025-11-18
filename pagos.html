@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pago - Rotacion100</title>
+<script src="https://js.stripe.com/v3/"></script>
+<style>
+body{font-family:Inter,sans-serif;background:#071b2a;color:#e6eef8;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}
+.card{background:rgba(255,255,255,0.04);border-radius:12px;padding:28px;width:360px;box-shadow:0 8px 30px rgba(2,6,23,0.7);}
+button{width:100%;padding:10px;border-radius:10px;border:0;background:linear-gradient(90deg,#7c3aed,#5eead4);color:#021;cursor:pointer;}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>Realizar Pago</h1>
+<form id="payment-form">
+<div id="card-element"></div>
+<button type="submit">Pagar $10</button>
+</form>
+</div>
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+const SUPABASE_URL = 'TU_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'TU_SUPABASE_ANON_KEY';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Aquí integrarías Stripe Elements + fetch a tu Edge Function para crear PaymentIntent
+</script>
+</body>
+</html>
