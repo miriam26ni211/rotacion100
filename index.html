@@ -7,9 +7,11 @@
   <script type="module">
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-    const SUPABASE_URL = 'https://TU_SUPABASE_URL';
-    const SUPABASE_ANON_KEY = 'TU_SUPABASE_ANON_KEY';
-    const EDGE_CREATE_STRIPE = '/.netlify/functions/create-stripe-express';
+    const SUPABASE_URL = 'https://akccnxfcldeydrewlcff.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFrY2NueGZjbGRleWRyZXdsY2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2MTcyMTYsImV4cCI6MjA3MzE5MzIxNn0.dSjJG8oFfvngq_Skr03yXXus2ej8CRT6l25mBRsk3gY';
+    
+    // Tu función real
+    const EDGE_CREATE_STRIPE = 'https://akccnxfcldeydrewlcff.supabase.co/functions/v1/create-stripe-account';
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -19,54 +21,72 @@
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        const email = document.getElementById('email').value;
-        const name = document.getElementById('name').value;
-        const phone = document.getElementById('phone').value;
-        const address = document.getElementById('address').value;
+        const email   = document.getElementById('email').value.trim();
+        const name    = document.getElementById('name').value.trim();
+        const phone   = document.getElementById('phone').value.trim();
+        const street  = document.getElementById('street').value.trim();
+        const city    = document.getElementById('city').value.trim();
+        const country = document.getElementById('country').value.trim();
 
-        if (!email || !name || !phone || !address) {
-          return alert('Completa todos los campos');
+        if (!email || !name || !phone || !city || !country) {
+          return alert('⚠️ Completa todos los campos obligatorios');
         }
 
-        // Enviar magic link
-        const { error } = await supabase.auth.signInWithOtp({ 
-          email, 
-          options: { emailRedirectTo: window.location.href }
-        });
-        if (error) return alert('Error: ' + error.message);
-
-        // Guardar info extra en Supabase
-        await fetch('/.netlify/functions/upsert-user', {
-          method: 'POST',
-          headers: {'content-type': 'application/json'},
-          body: JSON.stringify({ 
-            email,
-            usuario_id: crypto.randomUUID(),
-            nombre: name,
-            telefono: phone,
-            direccion: address
-          })
+        // Magic Link con redirect a tu Vercel (nunca más localhost)
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: 'https://yes-35u1xgcin-miriams-projects-6763f791.vercel.app'
+          }
         });
 
-        alert('Revisa tu email para el enlace mágico (magic link).');
+        if (error) {
+          console.error(error);
+          return alert('Error enviando magic link: ' + error.message);
+        }
+
+        alert('¡Revisa tu correo! Te enviamos el enlace mágico 📧');
       });
 
-      // Verificar sesión y llamar a Stripe Express
+      // Cuando vuelve logueado
       supabase.auth.onAuthStateChange(async (event, session) => {
-        if (session && session.user) {
+        if (event === 'SIGNED_IN' && session?.user) {
           const user = session.user;
-          const res = await fetch(EDGE_CREATE_STRIPE, {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ email: user.email, usuario_id: user.id })
-          });
 
-          const data = await res.json();
-          if (data?.onboardingUrl) {
-            window.location.href = data.onboardingUrl;
-          } else {
-            console.error(data);
-            alert('No se pudo crear el enlace de Stripe. Contacta al admin.');
+          try {
+            const res = await fetch(EDGE_CREATE_STRIPE, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                email: user.email,
+                usuario_id: user.id,
+                full_name: name.value || document.getElementById('name').value.trim(),
+                phone: phone.value || document.getElementById('phone').value.trim(),
+                address: {
+                  street: street.value || document.getElementById('street').value.trim(),
+                  city: city.value || document.getElementById('city').value.trim(),
+                  country: country.value || document.getElementById('country').value.trim()
+                }
+              })
+            });
+
+            const data = await res.json();
+
+            if (data.onboardingUrl) {
+              window.location.href = data.onboardingUrl;
+            } else if (data.alreadyConnected) {
+              alert('¡Ya estás conectado con Stripe! Redirigiendo...');
+              window.location.href = '/dashboard.html'; // cambia por tu dashboard real
+            } else {
+              console.error(data);
+              alert('Error con Stripe: ' + (data.error || 'Contacta al admin'));
+            }
+          } catch (err) {
+            console.error(err);
+            alert('Error de conexión. Intenta de nuevo.');
           }
         }
       });
@@ -75,33 +95,41 @@
 
   <style>
     :root { --bg:#0f172a; --card:#0b1220; --accent:#7c3aed; color-scheme: dark; }
-    body{ font-family: Inter, system-ui, sans-serif; background:linear-gradient(180deg,#071029,#071b2a); min-height:100vh; display:flex; align-items:center; justify-content:center; margin:0; }
-    .card{ background:rgba(255,255,255,0.04); border-radius:12px; padding:28px; width:360px; box-shadow:0 8px 30px rgba(2,6,23,0.7); color:#e6eef8; }
-    h1{ margin:0 0 12px 0; font-size:20px; }
-    label{ font-size:12px; opacity:.9; }
-    input{ width:100%; padding:10px; margin:8px 0 16px 0; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background:transparent; color:inherit; }
-    button{ width:100%; padding:10px; border-radius:10px; border:0; background:linear-gradient(90deg,var(--accent),#5eead4); color:#021; font-weight:600; cursor:pointer; }
+    body { font-family: Inter, system-ui, sans-serif; background:linear-gradient(180deg,#071029,#071b2a); min-height:100vh; display:flex; align-items:center; justify-content:center; margin:0; }
+    .card { background:rgba(255,255,255,0.04); border-radius:16px; padding:32px; width:90%; max-width:400px; box-shadow:0 10px 40px rgba(0,0,0,0.6); color:#e6eef8; }
+    h1 { margin:0 0 8px; font-size:22px; text-align:center; }
+    p { text-align:center; opacity:0.9; margin-bottom:20px; }
+    label { font-size:13px; opacity:0.9; display:block; margin-top:12px; }
+    input { width:100%; padding:12px; margin:6px 0 0; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:#ffffff08; color:white; font-size:15px; }
+    input:focus { outline:none; border-color:var(--accent); }
+    button { width:100%; padding:14px; margin-top:24px; border:none; border-radius:12px; background:linear-gradient(90deg,var(--accent),#5eead4); color:#000; font-weight:700; font-size:16px; cursor:pointer; }
+    button:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(124,58,237,0.4); }
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>Bienvenido</h1>
-    <p>Regístrate o ingresa con tu email</p>
-
+    <h1>🚀 Rotacion100</h1>
+    <p>Ingresa tus datos y recibe $100 al llegar a posición 100</p>
     <form id="auth-form">
-      <label for="name">Nombre completo</label>
-      <input id="name" type="text" placeholder="Tu nombre completo" required />
+      <label>Nombre completo *</label>
+      <input id="name" type="text" placeholder="Juan Pérez" required />
 
-      <label for="phone">Teléfono</label>
-      <input id="phone" type="tel" placeholder="+52 123 456 7890" required />
+      <label>Teléfono *</label>
+      <input id="phone" type="tel" placeholder="+52 81 1234 5678" required />
 
-      <label for="address">Dirección</label>
-      <input id="address" type="text" placeholder="Calle, Ciudad, País" required />
+      <label>Calle y número</label>
+      <input id="street" type="text" placeholder="Av. Siempre Viva 123" />
 
-      <label for="email">Email</label>
-      <input id="email" type="email" placeholder="tu@email.com" required />
+      <label>Ciudad *</label>
+      <input id="city" type="text" placeholder="Monterrey" required />
 
-      <button type="submit">Enviar enlace mágico</button>
+      <label>País *</label>
+      <input id="country" type="text" placeholder="México" required />
+
+      <label>Email *</label>
+      <input id="email" type="email" placeholder="tucorreo@gmail.com" required />
+
+      <button type="submit">Enviar enlace mágico ✨</button>
     </form>
   </div>
 </body>
